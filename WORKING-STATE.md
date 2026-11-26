@@ -624,3 +624,18 @@ verified hermes hydration live (boot_ms=1004). Ledger 23 records the
 podman egress follow-up (pasta traffic bypasses DOCKER-USER; enforcement
 verified empirically, formal podman-path ruleset = open follow-up).
 ADR-0003 hardening complete: H1a + H1b + H2 + H3 all signed.
+
+Twenty-third update (2026-11-25): ADR-0004 ACCEPTED (owner) — simplified
+deployment as a shared spine + paired project VMs. Three shared services
+on their own VMs (Infisical, hindsight, registry) serve all (VM-Xa, VM-Xb)
+pairs (D6-REV: one project = one pair); Infisical lands as D-secret-vault
+(self-hosted CE, LAN-only; .env files demote to derived artifacts of vault
+reads); role-shaped idempotent install scripts + orchestrator replace the
+m0–m5 chain as the deployment path (D-deploy-roles, kills the ledger-24
+class); light per-component smoke suites with a mandatory end-to-end on
+every pair deployment (D-deploy-gates); podman carried via xb_engine().
+NOT a version tree — ADR-0003 pattern inside the standalone repo; book
+revisions ch14/ch16 at P6. Build plan P0–P6 with TP gates in the ADR
+(P5 = first clean 5-VM deployment, target < 1 h). ADR + decision-log +
+this update written but UNCOMMITTED pending the owner's commit call
+(ADR-0003 also still untracked).

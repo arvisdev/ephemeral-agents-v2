@@ -773,3 +773,43 @@ unnecessary. Decisions recorded in the rewritten
 | D-eval-ci | **Continuous evaluation** (executed 2026-11-24, ADR-0003 H3): the judgment corpus is now a CI gate — `.github/workflows/judgment-corpus.yml` runs the 13-fixture self-check (0 errors required) on any PR/push touching the CoS profile, the corpus, the executor entrypoint, or the m5 compose; `ci-roster-index.json` is the generated 11-ref roster subset that keeps the gate self-contained (regenerate it from the live roster whenever fixtures gain refs). Layer-2 judgmental review + monthly trajectory sampling are owned by `deploy-v2/RUNBOOK-V2-EVAL-CADENCE.md` with the sampler at `deploy-v2/h3/trajectory-sample.sh`. TP-H3: positive (corpus green) and negative (injected bad-enum + nonexistent-ref fixture correctly fails with named error) both PASS; sampler live-verified against the real log volume. | 2026-11-24 | ADR-0003 H3 (post-publication architecture audit P1: manual episodic corpus, unowned Layer-2 cadence, no trajectory review). |
 
 | D-APlus-podman | **Rootless Podman migration + PidsLimit compat fix** (executed 2026-11-25, ADR-0003 H1b): the execution VM's executor path now runs rootless Podman (compose socket mount rewritten to the poc user's podman.sock, spawn via the docker-compat API, pinned egress network `pasta:-o,192.168.0.250`). Migration surfaced a real podman-compat bug: the Docker CLI always sends an explicit `HostConfig.PidsLimit: 0`, which podman's compat layer maps to cgroup `pids.max=1` — the executor could run exactly one process, bash hit endless `fork: Resource temporarily unavailable`, and every spawn died exit-254 in ~16 s with an empty artifact log. Fix: lifecycle spawn now emits an explicit `--pids-limit` (default 512, env `EA_PIDS_LIMIT`) — which also makes the pids budget a pinned safety property instead of a silent API accident. Verified live: e2e `af4489c5` gateway→manager→queue→executor→report `status: success`, exit-0, zero survivors. Evidence: `deploy-v2/h1/evidence/e2e-report-podman.json` + `podman-reap-evidence.txt`. | 2026-11-25 | ADR-0003 H1b (audit Law 6 rung-A engine half: root daemon exposure). Podman 5.7.0 compat quirk discovered by bisection: compat create without the PidsLimit field -> 2048; with the field at 0 -> 1. |
+
+## 2026-11-25 — ADR-0004: simplified deployment — shared spine + paired project VMs
+
+- **Decision (owner, this session):** deployment is refactored from the
+  milestone-staged m0–m5 install chain into role-shaped, independently
+  installable and independently testable components. Full record:
+  `version 2/adr-0004-simplified-deployment.md` (ACCEPTED).
+- **D-shared-spine:** three shared services on their OWN VMs serving all
+  pairs — Infisical (vault), hindsight (memory), docker registry. First
+  deployment = 5 VMs (infisical, hindsight, registry, VM-Xa, VM-Xb).
+- **D-secret-vault LANDS:** self-hosted Infisical (CE, on-prem, LAN-only;
+  Cloud rejected as a de-identification break) becomes the secrets source
+  of truth; runtime `.env` files become derived artifacts of vault reads
+  (0600, untracked); compose `${VAR}` interpolation contract unchanged.
+  Exception: Infisical's own bootstrap credentials stay locally staged.
+- **D-deploy-roles:** `deploy-v2/shared/{infisical,hindsight,registry}/install.sh`
+  + `deploy-v2/project/{xa,xb}/install.sh` + `deploy-v2/deploy.sh`
+  orchestrator (`--only`, `--project`), each idempotent with its own smoke
+  suite; m0–m5 scripts retire to gate/evidence harnesses. Kills the
+  ledger-24 order-sensitivity class.
+- **D6-REV:** one project = one (VM-Xa, VM-Xb) pair; an Xb MAY serve
+  multiple Xa's, but the standard configuration is the pair (owner: load/
+  latency rationale; single-large-project design preserved). N+1
+  onboarding = one new pair, shared spine untouched.
+- **D-deploy-gates:** light smoke suite per component on every deployment;
+  the pair's acceptance always includes one end-to-end
+  (gateway→manager→queue→executor→report); full TP batteries remain for
+  changes to the system itself.
+- **Engine carried:** rootless Podman on the execution VM via the
+  `xb_engine()` pattern (ADR-0003 H1b result).
+- **NOT a version tree:** the wave stays inside the standalone repo per
+  the Second-Edition rule — ADR-0003 pattern, deploy-v2 subtrees, book
+  revisions of ch14/ch16 at P6. No `version 2.5/` tree.
+- **Build plan:** P0 this record → P1 Infisical VM (TP-P1) → P2 shared
+  hindsight/registry refits (TP-P2) → P3 project xa/xb role scripts,
+  idempotency-verified on the LIVE pair (TP-P3) → P4 orchestrator (TP-P4)
+  → P5 first clean 5-VM deployment, wall-clock recorded, target < 1 h
+  (TP-P5) → P6 N+1 onboarding + book ch14/ch16 revisions (TP-P6).
+- **Status:** ADR written but UNCOMMITTED (owner to call commit/push;
+  ADR-0003 remains untracked pending its own go).
